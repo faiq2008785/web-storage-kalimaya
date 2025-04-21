@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import FileSidebar from './FileSidebar';
 import FileToolbar from './FileToolbar';
 import FileBreadcrumb from './FileBreadcrumb';
@@ -21,21 +21,37 @@ const FileManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentLocation, setCurrentLocation] = useState('all');
   
-  // Modals state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isQuickPreviewOpen, setIsQuickPreviewOpen] = useState(false);
+  const lastKeyWasSpaceRef = useRef(false);
 
-  // Initialize with mock data
   useEffect(() => {
     const mockData = generateMockData();
+
+    const hasMusic = mockData.some(
+      (f) => f.extension === "mp3" || (f.type === "music" || f.type === "audio")
+    );
+    if (!hasMusic) {
+      mockData.push({
+        id: `dummy-mp3`,
+        name: "Sample Music.mp3",
+        type: "music",
+        extension: "mp3",
+        size: 123456,
+        modified: new Date().toISOString(),
+        path: "Root/Sample Music.mp3",
+        parentId: "root",
+        isFolder: false,
+      });
+    }
+
     setFiles(mockData);
   }, []);
 
-  // Get current files based on folder and search
   const currentFiles = React.useMemo(() => {
     let filteredFiles = getFilesByParentId(files, currentFolder);
     
@@ -49,23 +65,19 @@ const FileManager: React.FC = () => {
     return filteredFiles;
   }, [files, currentFolder, searchQuery]);
 
-  // Handle file selection
   const handleFileSelect = (file: FileItem) => {
     setSelectedFile(file);
   };
 
-  // Handle file/folder opening
   const handleFileOpen = (file: FileItem) => {
     if (file.isFolder) {
       setCurrentFolder(file.id);
       navigateToFolder(file.id);
     } else {
-      // In a real app, this would open a preview of the file
       console.log("Opening file:", file.name);
     }
   };
 
-  // Handle folder navigation
   const navigateToFolder = (folderId: string) => {
     const folder = getFileById(files, folderId);
     if (folder) {
@@ -75,7 +87,6 @@ const FileManager: React.FC = () => {
     }
   };
 
-  // Handle breadcrumb navigation
   const handleBreadcrumbNavigate = (index: number) => {
     if (index === 0) {
       setCurrentFolder('root');
@@ -90,9 +101,7 @@ const FileManager: React.FC = () => {
     }
   };
 
-  // Handle upload files
   const handleUpload = (uploadedFiles: File[]) => {
-    // In a real app, this would upload files to server
     const newFiles = uploadedFiles.map(file => {
       const extension = file.name.split('.').pop() || '';
       
@@ -113,7 +122,6 @@ const FileManager: React.FC = () => {
     setIsUploadModalOpen(false);
   };
 
-  // Helper to determine file type from extension
   const getFileTypeFromExtension = (extension: string): string => {
     const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'bmp', 'webp'];
     const documentExtensions = ['pdf', 'doc', 'docx', 'txt', 'rtf'];
@@ -132,7 +140,6 @@ const FileManager: React.FC = () => {
     return 'file';
   };
 
-  // Handle create new folder
   const handleCreateFolder = (name: string) => {
     const newFolder: FileItem = {
       id: `folder-${Date.now()}`,
@@ -149,7 +156,6 @@ const FileManager: React.FC = () => {
     setIsNewFolderModalOpen(false);
   };
 
-  // Handle rename file/folder
   const handleRename = (newName: string) => {
     if (selectedFile) {
       setFiles(prev => prev.map(file => {
@@ -163,12 +169,10 @@ const FileManager: React.FC = () => {
     setIsRenameModalOpen(false);
   };
 
-  // Handle delete file/folder
   const handleDelete = () => {
     if (selectedFile) {
       const filesToDelete = [selectedFile.id];
       
-      // If it's a folder, also find and delete all children
       if (selectedFile.isFolder) {
         const getAllChildren = (parentId: string): string[] => {
           const children = files.filter(f => f.parentId === parentId);
@@ -187,7 +191,6 @@ const FileManager: React.FC = () => {
     setIsDeleteModalOpen(false);
   };
 
-  // Toggle star status for a file
   const handleToggleStar = (file: FileItem) => {
     setFiles(prev => prev.map(f => {
       if (f.id === file.id) {
@@ -201,7 +204,6 @@ const FileManager: React.FC = () => {
     );
   };
 
-  // Handle sidebar navigation
   const handleSidebarNavigate = (location: string) => {
     setCurrentLocation(location);
     
@@ -221,13 +223,11 @@ const FileManager: React.FC = () => {
         setCurrentPath(['Root', 'Images']);
       }
     } else if (location === 'starred') {
-      // Show starred files from all locations
       setCurrentFolder(null);
       setCurrentPath(['Starred Files']);
     }
   };
 
-  // Listen for spacebar (spasi) to show preview popup
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -235,10 +235,15 @@ const FileManager: React.FC = () => {
         document.activeElement?.tagName !== "INPUT" &&
         document.activeElement?.tagName !== "TEXTAREA"
       ) {
-        if (selectedFile) {
+        e.preventDefault();
+        if (!isQuickPreviewOpen && selectedFile) {
           setIsQuickPreviewOpen(true);
-          e.preventDefault();
+        } else if (isQuickPreviewOpen) {
+          setIsQuickPreviewOpen(false);
         }
+        lastKeyWasSpaceRef.current = true;
+      } else {
+        lastKeyWasSpaceRef.current = false;
       }
       if (
         (e.code === "Escape" || e.key === "Escape") &&
@@ -258,15 +263,11 @@ const FileManager: React.FC = () => {
         <ThemeToggle />
       </div>
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <FileSidebar 
           onNavigate={handleSidebarNavigate}
           currentLocation={currentLocation}
         />
-
-        {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Toolbar */}
           <FileToolbar 
             viewMode={viewMode}
             onViewModeChange={setViewMode}
@@ -279,14 +280,10 @@ const FileManager: React.FC = () => {
             canDelete={!!selectedFile}
             canRename={!!selectedFile}
           />
-          
-          {/* Breadcrumbs */}
           <FileBreadcrumb 
             path={currentPath}
             onNavigate={handleBreadcrumbNavigate}
           />
-          
-          {/* File View */}
           <div className="flex-1 overflow-hidden">
             <div className="flex h-full">
               <div className="flex-1 overflow-y-auto">
@@ -308,8 +305,6 @@ const FileManager: React.FC = () => {
                   />
                 )}
               </div>
-              
-              {/* Details Panel */}
               <FileDetails 
                 file={selectedFile}
                 onDownload={() => console.log('Download', selectedFile?.name)}
@@ -320,41 +315,33 @@ const FileManager: React.FC = () => {
           </div>
         </div>
       </div>
-      
-      {/* Quick Look (spasi) Preview Modal */}
       <FileQuickPreview
         open={isQuickPreviewOpen}
         onClose={() => setIsQuickPreviewOpen(false)}
         file={selectedFile}
       />
-
-      {/* Modals */}
       <FileUploader 
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onUpload={handleUpload}
       />
-      
       <NewFolderModal 
         isOpen={isNewFolderModalOpen}
         onClose={() => setIsNewFolderModalOpen(false)}
         onCreateFolder={handleCreateFolder}
       />
-      
       <RenameModal 
         isOpen={isRenameModalOpen}
         onClose={() => setIsRenameModalOpen(false)}
         file={selectedFile}
         onRename={handleRename}
       />
-      
       <DeleteModal 
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         file={selectedFile}
         onDelete={handleDelete}
       />
-      
       <ShareModal 
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
