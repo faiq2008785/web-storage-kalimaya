@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import FileSidebar from './FileSidebar';
 import FileToolbar from './FileToolbar';
@@ -11,6 +10,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { RenameModal, NewFolderModal, DeleteModal, ShareModal } from './FileModals';
 import { FileItem } from './types';
 import { generateMockData, getFilesByParentId, getPathToFile, getFileById } from './mockData';
+import { FileQuickPreview } from "./FileQuickPreview";
 
 const FileManager: React.FC = () => {
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -27,6 +27,7 @@ const FileManager: React.FC = () => {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isQuickPreviewOpen, setIsQuickPreviewOpen] = useState(false);
 
   // Initialize with mock data
   useEffect(() => {
@@ -226,6 +227,30 @@ const FileManager: React.FC = () => {
     }
   };
 
+  // Listen for spacebar (spasi) to show preview popup
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.code === "Space" || e.key === " ") &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        if (selectedFile) {
+          setIsQuickPreviewOpen(true);
+          e.preventDefault();
+        }
+      }
+      if (
+        (e.code === "Escape" || e.key === "Escape") &&
+        isQuickPreviewOpen
+      ) {
+        setIsQuickPreviewOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedFile, isQuickPreviewOpen]);
+
   return (
     <div className="h-screen flex flex-col">
       <div className="flex items-center justify-between p-2 bg-background border-b">
@@ -296,6 +321,13 @@ const FileManager: React.FC = () => {
         </div>
       </div>
       
+      {/* Quick Look (spasi) Preview Modal */}
+      <FileQuickPreview
+        open={isQuickPreviewOpen}
+        onClose={() => setIsQuickPreviewOpen(false)}
+        file={selectedFile}
+      />
+
       {/* Modals */}
       <FileUploader 
         isOpen={isUploadModalOpen}
